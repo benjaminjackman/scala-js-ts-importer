@@ -128,6 +128,8 @@ object Trees {
 
   case class UnionType(types: List[TypeTree]) extends TypeTree
 
+  case class TypeQuery(tpe: BaseTypeRef) extends TypeTree
+
   // Type members
 
   case class CallMember(signature: FunSignature) extends MemberTree

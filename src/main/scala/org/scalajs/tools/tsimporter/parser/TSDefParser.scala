@@ -18,6 +18,8 @@ import scala.util.parsing.input._
 
 class TSDefParser extends StdTokenParsers with ImplicitConversions {
 
+  //Language Spec: http://www.typescriptlang.org/Content/TypeScript%20Language%20Specification.pdf
+
   type Tokens = StdTokens
   val lexical: TSDefLexical = new TSDefLexical
 
@@ -150,7 +152,7 @@ class TSDefParser extends StdTokenParsers with ImplicitConversions {
     opt(":" ~> paramType)
 
   lazy val paramType: Parser[TypeTree] = (
-      unionTypeDesc
+      primaryOrUnionTypeDesc
     | stringLiteral ^^ ConstantType
   )
 
@@ -159,21 +161,23 @@ class TSDefParser extends StdTokenParsers with ImplicitConversions {
 
   lazy val resultType: Parser[TypeTree] = (
       ("void" ^^^ TypeRef(CoreType("void")))
-    | unionTypeDesc
+    | primaryOrUnionTypeDesc
   )
 
   lazy val optTypeAnnotation =
     opt(typeAnnotation)
 
   lazy val typeAnnotation =
-    ":" ~> unionTypeDesc
+    ":" ~> primaryOrUnionTypeDesc
 
-  lazy val unionTypeDesc: Parser[TypeTree] =
+  lazy val primaryOrUnionTypeDesc: Parser[TypeTree] =
     rep1sep(typeDesc, "|") ^^ {
       case tpe :: Nil => tpe
       case types => UnionType(types)
     }
 
+  lazy val typeQuery: Parser[TypeTree] =
+    "typeof" ~> baseTypeRef ^^ TypeQuery
 
   lazy val typeDesc: Parser[TypeTree] =
     baseTypeDesc ~ rep("[" ~ "]") ^^ {
@@ -184,10 +188,14 @@ class TSDefParser extends StdTokenParsers with ImplicitConversions {
     }
 
   lazy val baseTypeDesc: Parser[TypeTree] = (
-      typeRef
+    parenthesizedType
+    |  typeRef
     | objectType
     | functionType
+    | typeQuery
   )
+
+  lazy val parenthesizedType: Parser[TypeTree] = "(" ~> baseTypeDesc <~ ")"
 
   lazy val typeRef: Parser[TypeRef] =
     baseTypeRef ~ opt(typeArgs) ^^ {

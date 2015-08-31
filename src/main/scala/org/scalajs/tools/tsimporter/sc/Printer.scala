@@ -35,9 +35,14 @@ class Printer(private val output: PrintWriter, outputPackage: String) {
         }
 
         if (isRootPackage) {
-          pln"";
+          pln""
+//          pln"import scala.scalajs.js"
+//          pln"import js.annotation._"
           pln"import scala.scalajs.js"
+          pln"import scala.scalajs.js.|"
           pln"import js.annotation._"
+          pln"import org.scalajs.dom.raw._"
+          pln"import scala.scalajs.js.typedarray._"
         }
 
         val oldJSNamespace = currentJSNamespace
@@ -186,6 +191,7 @@ class Printer(private val output: PrintWriter, outputPackage: String) {
 
 object Printer {
   private class ListElemSeparator(val s: String) extends AnyVal
+
 
   private object ListElemSeparator {
     val Comma = new ListElemSeparator(", ")

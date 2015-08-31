@@ -328,8 +328,12 @@ class Importer(val output: java.io.PrintWriter) {
       case RepeatedType(underlying) =>
         TypeRef(Name.REPEATED, List(typeToScala(underlying)))
 
-      case _ =>
+      case UnionType(members) =>
+        TypeRef.Any
+
+      case x =>
         // ???
+        println(s"ERROR: Punting to any type for $x")
         TypeRef.Any
     }
   }

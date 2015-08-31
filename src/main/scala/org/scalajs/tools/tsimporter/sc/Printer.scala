@@ -48,29 +48,43 @@ class Printer(private val output: PrintWriter, outputPackage: String) {
         val oldJSNamespace = currentJSNamespace
         if (!isRootPackage)
           currentJSNamespace += name.name + "."
-
-        if (!topLevels.isEmpty) {
-          pln"";
-          pln"package $thisPackage {"
-          for (sym <- topLevels)
-            printSymbol(sym)
-          pln"";
-          pln"}"
-        }
-
-        if (!packageObjectMembers.isEmpty) {
-          pln"";
-          if (currentJSNamespace == "") {
-            pln"package object $thisPackage extends js.GlobalScope {"
-          } else {
-//            val jsName = currentJSNamespace.init
-//            pln"""@JSName("$jsName")"""
-            pln"package object $thisPackage extends js.Object {"
+        if (isRootPackage) {
+          if (!topLevels.isEmpty) {
+            pln"";
+            pln"package $thisPackage {"
+            for (sym <- topLevels)
+              printSymbol(sym)
+            pln"";
+            pln"}"
           }
-          for (sym <- packageObjectMembers)
-            printSymbol(sym)
+
+          if (!packageObjectMembers.isEmpty) {
+            pln"";
+            if (currentJSNamespace == "") {
+              pln"package object $thisPackage extends js.GlobalScope {"
+            } else {
+  //            val jsName = currentJSNamespace.init
+  //            pln"""@JSName("$jsName")"""
+              pln"package object $thisPackage extends js.Object {"
+            }
+            for (sym <- packageObjectMembers)
+              printSymbol(sym)
+            pln"}"
+          }
+        } else {
+
+          //Use scala object for packages which are not root packages
+          pln"";
+          if (currentJSNamespace != "")
+            pln"""@JSName("$currentJSNamespace$name")"""
+          pln"@js.native"
+          pln"object $name extends js.Object {"
+          printMemberDecls(sym)
           pln"}"
+
         }
+
+
 
         currentJSNamespace = oldJSNamespace
 

@@ -63,8 +63,8 @@ class Printer(private val output: PrintWriter, outputPackage: String) {
           if (currentJSNamespace == "") {
             pln"package object $thisPackage extends js.GlobalScope {"
           } else {
-            val jsName = currentJSNamespace.init
-            pln"""@JSName("$jsName")"""
+//            val jsName = currentJSNamespace.init
+//            pln"""@JSName("$jsName")"""
             pln"package object $thisPackage extends js.Object {"
           }
           for (sym <- packageObjectMembers)
@@ -111,28 +111,35 @@ class Printer(private val output: PrintWriter, outputPackage: String) {
         pln"}"
 
       case sym: FieldSymbol =>
-        sym.jsName foreach { jsName =>
-          pln"""  @JSName("$jsName")"""
-        }
-        pln"  var $name: ${sym.tpe} = js.native"
-
-      case sym: MethodSymbol =>
-        val params = sym.params
-
-        if (name == Name.CONSTRUCTOR) {
-          if (!params.isEmpty)
-            pln"  def this($params) = this()"
+        if (sym.isOverride) {
         } else {
           sym.jsName foreach { jsName =>
             pln"""  @JSName("$jsName")"""
           }
-          if (sym.isBracketAccess)
-            pln"""  @JSBracketAccess"""
-          p"  def $name"
-          if (!sym.tparams.isEmpty)
-            p"[${sym.tparams}]"
-          pln"($params): ${sym.resultType} = js.native"
+          pln"  var $name: ${sym.tpe} = js.native"
         }
+
+      case sym: MethodSymbol =>
+        if (sym.isOverride) {
+        } else {
+          val params = sym.params
+
+          if (name == Name.CONSTRUCTOR) {
+            if (!params.isEmpty)
+              pln"  def this($params) = this()"
+          } else {
+            sym.jsName foreach { jsName =>
+              pln"""  @JSName("$jsName")"""
+            }
+            if (sym.isBracketAccess)
+              pln"""  @JSBracketAccess"""
+            p"  def $name"
+            if (!sym.tparams.isEmpty)
+              p"[${sym.tparams}]"
+            pln"($params): ${sym.resultType} = js.native"
+          }
+        }
+
 
       case sym: ParamSymbol =>
         p"$name: ${sym.tpe}${if (sym.optional) " = ???" else ""}"

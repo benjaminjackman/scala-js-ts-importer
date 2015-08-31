@@ -178,6 +178,7 @@ class ModuleSymbol(nme: Name) extends ContainerSymbol(nme) {
 
 class FieldSymbol(nme: Name) extends Symbol(nme) with JSNameable {
   var tpe: TypeRef = TypeRef.Any
+  var isOverride : Boolean = false
 
   override def toString() = s"${jsNameStr}var $name: $tpe"
 }
@@ -186,6 +187,7 @@ class MethodSymbol(nme: Name) extends Symbol(nme) with JSNameable {
   val tparams = new ListBuffer[TypeParamSymbol]
   val params = new ListBuffer[ParamSymbol]
   var resultType: TypeRef = TypeRef.Dynamic
+  var isOverride : Boolean = false
 
   var isBracketAccess: Boolean = false
 

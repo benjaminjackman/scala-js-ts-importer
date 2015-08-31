@@ -8,6 +8,8 @@ package org.scalajs.tools.tsimporter
 import Trees.{ TypeRef => TypeRefTree, _ }
 import sc._
 
+import scala.collection.mutable
+
 /** The meat and potatoes: the importer
  *  It reads the TypeScript AST and produces (hopefully) equivalent Scala
  *  code.
@@ -15,12 +17,19 @@ import sc._
 class Importer(val output: java.io.PrintWriter) {
   import Importer._
 
+  private val declMap = mutable.Map.empty[String, ContainerSymbol]
+
   /** Entry point */
   def apply(declarations: List[DeclTree], outputPackage: String) {
+    declMap.clear()
     val rootPackage = new PackageSymbol(Name.EMPTY)
 
     for (declaration <- declarations)
       processDecl(rootPackage, declaration)
+
+
+    for (declaration <- declMap.values)
+      processOverrides(rootPackage, declaration)
 
     new Printer(output, outputPackage).printSymbol(rootPackage)
   }
@@ -40,6 +49,7 @@ class Importer(val output: java.io.PrintWriter) {
         processMembersDecls(owner, sym, members)
 
       case TypeDecl(TypeNameName(name), tpe @ ObjectType(members)) =>
+        println("TYPE DECL")
         val sym = owner.getClassOrCreate(name)
         processMembersDecls(owner, sym, members)
 
@@ -60,8 +70,9 @@ class Importer(val output: java.io.PrintWriter) {
         applySym.resultType = TypeRef.String
         applySym.isBracketAccess = true
 
-      case ClassDecl(TypeNameName(name), tparams, parent, implements, members) =>
+      case cd @ ClassDecl(TypeNameName(name), tparams, parent, implements, members) =>
         val sym = owner.getClassOrCreate(name)
+        declMap += cd.name.name -> sym
         sym.isTrait = false
         parent.foreach(sym.parents += typeToScala(_))
         for {
@@ -77,8 +88,10 @@ class Importer(val output: java.io.PrintWriter) {
               FunSignature(Nil, Nil, Some(TypeRefTree(CoreType("void")))))
         }
 
-      case InterfaceDecl(TypeNameName(name), tparams, inheritance, members) =>
+
+      case id @ InterfaceDecl(TypeNameName(name), tparams, inheritance, members) =>
         val sym = owner.getClassOrCreate(name)
+        declMap += id.name.name -> sym
         for {
           parent <- inheritance.map(typeToScala)
           if !sym.parents.contains(parent)
@@ -87,6 +100,7 @@ class Importer(val output: java.io.PrintWriter) {
         }
         sym.tparams ++= typeParamsToScala(tparams)
         processMembersDecls(owner, sym, members)
+
 
       case VarDecl(IdentName(name), TypeOrAny(tpe)) =>
         val sym = owner.newField(name)
@@ -98,6 +112,34 @@ class Importer(val output: java.io.PrintWriter) {
       case _ =>
         owner.members += new CommentSymbol("??? "+declaration)
     }
+  }
+
+  private def processOverrides(owner: ContainerSymbol, decl: ContainerSymbol) {
+    decl match {
+      case clsSym : ClassSymbol =>
+        clsSym.parents.foreach { parent =>
+          val pname = parent.typeName.parts.mkString(".")
+          declMap.get(pname) match {
+            case Some(parent) =>
+              clsSym.members.foreach {
+                case s: FieldSymbol if parent.members.exists(_.name == s.name) =>
+                  s.isOverride = true
+                case s: MethodSymbol if s.name != Name.CONSTRUCTOR && parent.members.exists(_.name == s.name) =>
+                  s.isOverride = true
+                case x =>
+              }
+            case _ =>
+              println("NO PARENT" + pname)
+          }
+        }
+      case sym =>
+        sym.members.foreach {
+          case s : ContainerSymbol =>
+            processOverrides(sym, s)
+          case _ =>
+        }
+    }
+
   }
 
   private def processMembersDecls(enclosing: ContainerSymbol,

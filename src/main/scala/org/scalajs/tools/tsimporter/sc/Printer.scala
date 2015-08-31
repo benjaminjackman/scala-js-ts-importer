@@ -80,9 +80,10 @@ class Printer(private val output: PrintWriter, outputPackage: String) {
           if (sym.parents.isEmpty) List(TypeRef.Object)
           else sym.parents.toList
 
-        pln"";
+        pln""
         if (currentJSNamespace != "" && !sym.isTrait)
           pln"""@JSName("$currentJSNamespace$name")"""
+        pln"@js.native"
         p"$sealedKw$kw $name"
         if (!sym.tparams.isEmpty)
           p"[${sym.tparams}]"
@@ -99,6 +100,7 @@ class Printer(private val output: PrintWriter, outputPackage: String) {
         pln"";
         if (currentJSNamespace != "")
           pln"""@JSName("$currentJSNamespace$name")"""
+        pln"@js.native"
         pln"object $name extends js.Object {"
         printMemberDecls(sym)
         pln"}"

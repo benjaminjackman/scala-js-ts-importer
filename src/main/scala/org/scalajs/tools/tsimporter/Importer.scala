@@ -5,15 +5,15 @@
 
 package org.scalajs.tools.tsimporter
 
-import Trees.{ TypeRef => TypeRefTree, _ }
+import Trees.{TypeRef => TypeRefTree, _}
 import sc._
 
 import scala.collection.mutable
 
 /** The meat and potatoes: the importer
- *  It reads the TypeScript AST and produces (hopefully) equivalent Scala
- *  code.
- */
+  * It reads the TypeScript AST and produces (hopefully) equivalent Scala
+  * code.
+  */
 class Importer(val output: java.io.PrintWriter) {
   import Importer._
 
@@ -38,17 +38,17 @@ class Importer(val output: java.io.PrintWriter) {
     declaration match {
       case ModuleDecl(PropertyNameName(name), innerDecls) =>
         assert(owner.isInstanceOf[PackageSymbol],
-            s"Found package $name in non-package $owner")
+          s"Found package $name in non-package $owner")
         val sym = owner.asInstanceOf[PackageSymbol].getPackageOrCreate(name)
 
         for (innerDecl <- innerDecls)
           processDecl(sym, innerDecl)
 
-      case VarDecl(IdentName(name), Some(tpe @ ObjectType(members))) =>
+      case VarDecl(IdentName(name), Some(tpe@ObjectType(members))) =>
         val sym = owner.getModuleOrCreate(name)
         processMembersDecls(owner, sym, members)
 
-      case TypeDecl(TypeNameName(name), tpe @ ObjectType(members)) =>
+      case TypeDecl(TypeNameName(name), tpe@ObjectType(members)) =>
         println("TYPE DECL")
         val sym = owner.getClassOrCreate(name)
         processMembersDecls(owner, sym, members)
@@ -70,7 +70,7 @@ class Importer(val output: java.io.PrintWriter) {
         applySym.resultType = TypeRef.String
         applySym.isBracketAccess = true
 
-      case cd @ ClassDecl(TypeNameName(name), tparams, parent, implements, members) =>
+      case cd@ClassDecl(TypeNameName(name), tparams, parent, implements, members) =>
         val sym = owner.getClassOrCreate(name)
         declMap += cd.name.name -> sym
         sym.isTrait = false
@@ -85,11 +85,11 @@ class Importer(val output: java.io.PrintWriter) {
         processMembersDecls(owner, sym, members)
         if (!sym.members.exists(_.name == Name.CONSTRUCTOR)) {
           processDefDecl(sym, Name.CONSTRUCTOR,
-              FunSignature(Nil, Nil, Some(TypeRefTree(CoreType("void")))))
+            FunSignature(Nil, Nil, Some(TypeRefTree(CoreType("void")))))
         }
 
 
-      case id @ InterfaceDecl(TypeNameName(name), tparams, inheritance, members) =>
+      case id@InterfaceDecl(TypeNameName(name), tparams, inheritance, members) =>
         val sym = owner.getClassOrCreate(name)
         declMap += id.name.name -> sym
         for {
@@ -110,31 +110,50 @@ class Importer(val output: java.io.PrintWriter) {
         processDefDecl(owner, name, signature)
 
       case _ =>
-        owner.members += new CommentSymbol("??? "+declaration)
+        owner.members += new CommentSymbol("??? " + declaration)
     }
   }
 
+  private val objNames = List("clone").map(Name(_)).toSet
+
   private def processOverrides(owner: ContainerSymbol, decl: ContainerSymbol) {
     decl match {
-      case clsSym : ClassSymbol =>
-        clsSym.parents.foreach { parent =>
-          val pname = parent.typeName.parts.mkString(".")
-          declMap.get(pname) match {
-            case Some(parent) =>
-              clsSym.members.foreach {
-                case s: FieldSymbol if parent.members.exists(_.name == s.name) =>
-                  s.isOverride = true
-                case s: MethodSymbol if s.name != Name.CONSTRUCTOR && parent.members.exists(_.name == s.name) =>
-                  s.isOverride = true
-                case x =>
-              }
-            case _ =>
-              println("NO PARENT" + pname)
-          }
+      case clsSym: ClassSymbol =>
+
+        def loopOnParents(parents: Seq[TypeRef]): List[Name] = {
+          parents.flatMap { parent =>
+            val pname = parent.typeName.parts.mkString(".")
+            declMap.get(pname) match {
+              case Some(parent) =>
+                (parent match {
+                  case parent: ClassSymbol => loopOnParents(parent.parents)
+                  case _ => Nil
+                }) ::: parent.members.map(_.name).toList
+              case _ =>
+                println("ERROR: Unable to find parent" + pname)
+                Nil
+            }
+          }.toList
         }
+
+        val parentMembers = loopOnParents(clsSym.parents).toSet
+
+        clsSym.members.foreach {
+          case s: FieldSymbol =>
+            s.isOverride = true
+          case s: MethodSymbol =>
+            if (s.name != Name.CONSTRUCTOR) {
+              if (parentMembers.contains(s.name) || objNames.contains(s.name)) {
+                s.isOverride = true
+              }
+            }
+
+          case x =>
+        }
+
       case sym =>
         sym.members.foreach {
-          case s : ContainerSymbol =>
+          case s: ContainerSymbol =>
             processOverrides(sym, s)
           case _ =>
         }
@@ -143,7 +162,7 @@ class Importer(val output: java.io.PrintWriter) {
   }
 
   private def processMembersDecls(enclosing: ContainerSymbol,
-      owner: ContainerSymbol, members: List[MemberTree]) {
+    owner: ContainerSymbol, members: List[MemberTree]) {
 
     val OwnerName = owner.name
 
@@ -160,16 +179,16 @@ class Importer(val output: java.io.PrintWriter) {
       case CallMember(signature) =>
         processDefDecl(owner, Name("apply"), signature, protectName = false)
 
-      case ConstructorMember(sig @ FunSignature(tparamsIgnored, params, Some(resultType)))
-      if owner.isInstanceOf[ModuleSymbol] && resultType == companionClassRef =>
+      case ConstructorMember(sig@FunSignature(tparamsIgnored, params, Some(resultType)))
+        if owner.isInstanceOf[ModuleSymbol] && resultType == companionClassRef =>
         val classSym = enclosing.getClassOrCreate(owner.name)
         classSym.isTrait = false
         processDefDecl(classSym, Name.CONSTRUCTOR,
-            FunSignature(Nil, params, Some(TypeRefTree(CoreType("void")))))
+          FunSignature(Nil, params, Some(TypeRefTree(CoreType("void")))))
 
       case PropertyMember(PropertyNameName(name), opt, tpe, true) =>
         assert(owner.isInstanceOf[ClassSymbol],
-            s"Cannot process static member $name in module definition")
+          s"Cannot process static member $name in module definition")
         val module = enclosing.getModuleOrCreate(owner.name)
         processPropertyDecl(module, name, tpe)
 
@@ -177,14 +196,14 @@ class Importer(val output: java.io.PrintWriter) {
         processPropertyDecl(owner, name, tpe)
 
       case FunctionMember(PropertyName("constructor"), _, signature, false)
-      if owner.isInstanceOf[ClassSymbol] =>
+        if owner.isInstanceOf[ClassSymbol] =>
         owner.asInstanceOf[ClassSymbol].isTrait = false
         processDefDecl(owner, Name.CONSTRUCTOR,
-            FunSignature(Nil, signature.params, Some(TypeRefTree(CoreType("void")))))
+          FunSignature(Nil, signature.params, Some(TypeRefTree(CoreType("void")))))
 
       case FunctionMember(PropertyNameName(name), opt, signature, true) =>
         assert(owner.isInstanceOf[ClassSymbol],
-            s"Cannot process static member $name in module definition")
+          s"Cannot process static member $name in module definition")
         val module = enclosing.getModuleOrCreate(owner.name)
         processDefDecl(module, name, signature)
 
@@ -207,12 +226,12 @@ class Importer(val output: java.io.PrintWriter) {
         setterSym.isBracketAccess = true
 
       case _ =>
-        owner.members += new CommentSymbol("??? "+member)
+        owner.members += new CommentSymbol("??? " + member)
     }
   }
 
   private def processPropertyDecl(owner: ContainerSymbol, name: Name,
-      tpe: TypeTree, protectName: Boolean = true) {
+    tpe: TypeTree, protectName: Boolean = true) {
     if (name.name != "prototype") {
       tpe match {
         case ObjectType(members) if members.forall(_.isInstanceOf[CallMember]) =>
@@ -229,7 +248,7 @@ class Importer(val output: java.io.PrintWriter) {
   }
 
   private def processDefDecl(owner: ContainerSymbol, name: Name,
-      signature: FunSignature, protectName: Boolean = true) {
+    signature: FunSignature, protectName: Boolean = true) {
     // Discard specialized signatures
     if (signature.params.exists(_.tpe.exists(_.isInstanceOf[ConstantType])))
       return
@@ -259,7 +278,7 @@ class Importer(val output: java.io.PrintWriter) {
 
   private def typeParamsToScala(tparams: List[TypeParam]): List[TypeParamSymbol] = {
     for (TypeParam(TypeNameName(tparam), upperBound) <- tparams) yield
-      new TypeParamSymbol(tparam, upperBound map typeToScala)
+    new TypeParamSymbol(tparam, upperBound map typeToScala)
   }
 
   private def typeToScala(tpe: TypeTree): TypeRef =
@@ -316,16 +335,16 @@ class Importer(val output: java.io.PrintWriter) {
   }
 
   private def coreTypeToScala(tpe: CoreType,
-      anyAsDynamic: Boolean = false): TypeRef = {
+    anyAsDynamic: Boolean = false): TypeRef = {
 
     tpe.name match {
-      case "any"     => if (anyAsDynamic) TypeRef.Dynamic else TypeRef.Any
+      case "any" => if (anyAsDynamic) TypeRef.Dynamic else TypeRef.Any
       case "dynamic" => TypeRef.Dynamic
-      case "void"    => TypeRef.Unit
-      case "number"  => TypeRef.Double
-      case "bool"    => TypeRef.Boolean
+      case "void" => TypeRef.Unit
+      case "number" => TypeRef.Double
+      case "bool" => TypeRef.Boolean
       case "boolean" => TypeRef.Boolean
-      case "string"  => TypeRef.String
+      case "string" => TypeRef.String
     }
   }
 }

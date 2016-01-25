@@ -46,28 +46,27 @@ class Printer(private val output: PrintWriter, outputPackage: String) {
         if (!isRootPackage)
           currentJSNamespace += name.name + "."
 
-        if (!topLevels.isEmpty) {
+        if (isRootPackage) {
+          if (!topLevels.isEmpty) {
+            pln"";
+            pln"package $thisPackage {"
+            for (sym <- topLevels)
+              printSymbol(sym)
+            pln"";
+            pln"}"
+          }
+        } else {
+          //Use scala object for packages which are not root packages
           pln"";
-          pln"package $thisPackage {"
-          for (sym <- topLevels)
-            printSymbol(sym)
-          pln"";
+          if (currentJSNamespace != "")
+            pln"""@JSName("$currentJSNamespace$name")"""
+          pln"@js.native"
+          pln"object $name extends js.Object {"
+          printMemberDecls(sym)
           pln"}"
         }
 
-        if (!packageObjectMembers.isEmpty) {
-          pln"";
-          if (currentJSNamespace == "") {
-            pln"package object $thisPackage extends js.GlobalScope {"
-          } else {
-            val jsName = currentJSNamespace.init
-            pln"""@JSName("$jsName")"""
-            pln"package object $thisPackage extends js.Object {"
-          }
-          for (sym <- packageObjectMembers)
-            printSymbol(sym)
-          pln"}"
-        }
+
 
         currentJSNamespace = oldJSNamespace
 
@@ -85,7 +84,7 @@ class Printer(private val output: PrintWriter, outputPackage: String) {
         pln"";
         pln"@js.native"
         if (currentJSNamespace != "" && !sym.isTrait)
-          pln"""@JSName("$currentJSNamespace$name")"""
+          pln"""@JSName("$currentJSNamespace.$name")"""
         p"$sealedKw$kw $name"
         if (!sym.tparams.isEmpty)
           p"[${sym.tparams}]"
@@ -99,13 +98,24 @@ class Printer(private val output: PrintWriter, outputPackage: String) {
         pln"}"
 
       case sym: ModuleSymbol =>
+        val oldJSNamespace = currentJSNamespace
+        currentJSNamespace +=  {if (currentJSNamespace.isEmpty) {
+            name.name
+          } else {
+            "." + name.name
+        }}
+
         pln"";
-        pln"@js.native"
+
         if (currentJSNamespace != "")
-          pln"""@JSName("$currentJSNamespace$name")"""
+          pln"""@JSName("$currentJSNamespace")"""
+        pln"@js.native"
         pln"object $name extends js.Object {"
         printMemberDecls(sym)
         pln"}"
+
+        currentJSNamespace = oldJSNamespace
+
 
       case sym: TypeAliasSymbol =>
         p"  type $name"

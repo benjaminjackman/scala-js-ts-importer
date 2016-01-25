@@ -139,19 +139,24 @@ class Printer(private val output: PrintWriter, outputPackage: String) {
         } else {
           val params = sym.params
 
-          if (name == Name.CONSTRUCTOR) {
-            if (!params.isEmpty)
-              pln"  def this($params) = this()"
+          if (sym.params.exists(_.optional) && sym.params.exists(_.isRepeated)) {
+            //Illegal in scala appearantly :(
+            println("ERROR: Unable to emit method with BOTH optional AND repeated args: " + sym)
           } else {
-            sym.jsName foreach { jsName =>
-              pln"""  @JSName("$jsName")"""
+            if (name == Name.CONSTRUCTOR) {
+              if (!params.isEmpty)
+                pln"  def this($params) = this()"
+            } else {
+              sym.jsName foreach { jsName =>
+                pln"""  @JSName("$jsName")"""
+              }
+              if (sym.isBracketAccess)
+                pln"""  @JSBracketAccess"""
+              p"  def $name"
+              if (!sym.tparams.isEmpty)
+                p"[${sym.tparams}]"
+              pln"($params): ${sym.resultType} = js.native"
             }
-            if (sym.isBracketAccess)
-              pln"""  @JSBracketAccess"""
-            p"  def $name"
-            if (!sym.tparams.isEmpty)
-              p"[${sym.tparams}]"
-            pln"($params): ${sym.resultType} = js.native"
           }
         }
 

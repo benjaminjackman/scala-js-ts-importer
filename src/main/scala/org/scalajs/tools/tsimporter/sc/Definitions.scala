@@ -232,6 +232,10 @@ class ParamSymbol(nme: Name) extends Symbol(nme) {
   }
 
   var optional: Boolean = false
+  def isRepeated = tpe match {
+    case TypeRef.Repeated(_) => true
+    case _ => false
+  }
   var tpe: TypeRef = TypeRef.Any
 
   override def toString() =

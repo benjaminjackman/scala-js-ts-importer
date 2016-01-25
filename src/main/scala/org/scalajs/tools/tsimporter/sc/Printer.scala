@@ -58,19 +58,20 @@ class Printer(private val output: PrintWriter, outputPackage: String) {
             pln"}"
           }
 
-          if (!packageObjectMembers.isEmpty) {
-            pln"";
-            if (currentJSNamespace == "") {
-              pln"package object $thisPackage extends js.GlobalScope {"
-            } else {
-  //            val jsName = currentJSNamespace.init
-  //            pln"""@JSName("$jsName")"""
-              pln"package object $thisPackage extends js.Object {"
-            }
-            for (sym <- packageObjectMembers)
-              printSymbol(sym)
-            pln"}"
-          }
+          //Scala JS Can't handle package objects that extend js
+//          if (!packageObjectMembers.isEmpty) {
+//            pln"";
+//            if (currentJSNamespace == "") {
+//              pln"package object $thisPackage extends js.GlobalScope {"
+//            } else {
+//  //            val jsName = currentJSNamespace.init
+//  //            pln"""@JSName("$jsName")"""
+//              pln"package object $thisPackage extends js.Object {"
+//            }
+//            for (sym <- packageObjectMembers)
+//              printSymbol(sym)
+//            pln"}"
+//          }
         } else {
 
           //Use scala object for packages which are not root packages

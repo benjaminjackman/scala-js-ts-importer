@@ -131,7 +131,7 @@ class Importer(val output: java.io.PrintWriter) {
                   case _ => Nil
                 }) ::: parent.members.map(_.name).toList
               case _ =>
-                println("ERROR: Unable to find parent" + pname)
+                println("ERROR: Unable to find parent: " + pname)
                 Nil
             }
           }.toList
